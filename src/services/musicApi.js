@@ -2,8 +2,30 @@
  * Music API Service
  * Centralized service for all music streaming API calls
  */
+// Resolves backend API URL:
+// 1. Production: Provided via VITE_API_URL or VITE_API_BASE_URL environment variable
+// 2. Local Development: Defaults to 'http://localhost:5000/api'
+function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  if (import.meta.env.DEV) {
+    return 'http://localhost:5000/api';
+  }
+
+  // Production fallback: Warn if environment variable is missing
+  console.warn(
+    '[Aevora Music] VITE_API_URL is not defined! ' +
+    'Please set VITE_API_URL in your hosting environment variables (e.g. Vercel dashboard) to your deployed backend URL.'
+  );
+  return '/api';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Searches for songs by name, artist, or query
