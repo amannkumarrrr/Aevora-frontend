@@ -3,26 +3,17 @@
  * Centralized service for all music streaming API calls
  */
 // Resolves backend API URL:
-// 1. Production: Provided via VITE_API_URL or VITE_API_BASE_URL environment variable
-// 2. Local Development: Defaults to 'http://localhost:5000/api'
+// 1. Production: Uses import.meta.env.VITE_API_URL (defaults to https://aevora-backend.vercel.app)
+// 2. Local Development: Defaults to 'http://localhost:5000'
 function getApiBaseUrl() {
   const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    const clean = envUrl.trim().replace(/\/+$/, '');
-    return clean.endsWith('/api') ? clean : `${clean}/api`;
-  }
-
-  if (import.meta.env.DEV) {
-    return 'http://localhost:5000/api';
-  }
-
-  // Production fallback: Warn if environment variable is missing
-  console.warn(
-    '[Aevora Music] VITE_API_URL is not defined! ' +
-    'Please set VITE_API_URL in your hosting environment variables (e.g. Vercel dashboard) to your deployed backend URL.'
+  const rawUrl = envUrl || (
+    import.meta.env.DEV ? 'http://localhost:5000' : 'https://aevora-backend.vercel.app'
   );
-  return '/api';
+
+  const clean = rawUrl.trim().replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
 }
 
 const API_BASE_URL = getApiBaseUrl();
