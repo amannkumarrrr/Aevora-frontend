@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, ListMusic, Play, Trash2 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
-import { formatTime } from './SongCard';
+import { formatTime } from '../utils/formatTime';
 
 export default function QueueModal({ isOpen, onClose }) {
   const { queue, currentIndex, playSong } = useMusicPlayer();

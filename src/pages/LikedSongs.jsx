@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { Heart, Play, Pause, Clock, Music } from 'lucide-react';
-import { formatTime } from '../components/SongCard';
+import { formatTime } from '../utils/formatTime';
 
 export default function LikedSongs() {
   const {

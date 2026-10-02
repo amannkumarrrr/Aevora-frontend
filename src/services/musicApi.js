@@ -65,16 +65,25 @@ export async function getSong(songUrlOrId) {
 /**
  * Fetches lyrics on demand for a song
  * @param {string} songUrlOrId
+ * @param {string} [artist]
+ * @param {string} [title]
  * @returns {Promise<string|null>} Lyrics text or null
  */
-export async function getLyrics(songUrlOrId) {
-  if (!songUrlOrId) return null;
+export async function getLyrics(songUrlOrId, artist = '', title = '') {
+  if (!songUrlOrId && (!artist || !title)) return null;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
 
-    const url = `${API_BASE_URL}/lyrics?query=${encodeURIComponent(songUrlOrId)}`;
+    let url = `${API_BASE_URL}/lyrics?query=${encodeURIComponent(songUrlOrId || '')}`;
+    if (artist && artist.trim()) {
+      url += `&artist=${encodeURIComponent(artist.trim())}`;
+    }
+    if (title && title.trim()) {
+      url += `&title=${encodeURIComponent(title.trim())}`;
+    }
+
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 

@@ -2,7 +2,14 @@ import React from 'react';
 import SongCard from './SongCard';
 import { Music, AlertCircle } from 'lucide-react';
 
-export default function SongList({ songs = [], isLoading = false, error = null, onRetry = null, emptyMessage = 'No songs found.' }) {
+export default function SongList({
+  songs = [],
+  isLoading = false,
+  error = null,
+  onRetry = null,
+  emptyMessage = 'No songs found.',
+  isSearchResult = false,
+}) {
   if (isLoading) {
     return (
       <div className="song-grid">
@@ -76,7 +83,12 @@ export default function SongList({ songs = [], isLoading = false, error = null, 
   return (
     <div className="song-grid">
       {songs.map((song, idx) => (
-        <SongCard key={song.id || song.songid || idx} song={song} songList={songs} index={idx} />
+        <SongCard
+          key={song.id || song.songid || idx}
+          song={song}
+          songList={isSearchResult ? null : songs}
+          index={isSearchResult ? -1 : idx}
+        />
       ))}
     </div>
   );

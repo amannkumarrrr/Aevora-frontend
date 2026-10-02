@@ -1,16 +1,9 @@
 import React from 'react';
 import { Play, Pause, FileText, Music, Heart } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { formatTime } from '../utils/formatTime';
 
-export function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const total = Math.floor(Number(seconds));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-}
-
-export default function SongCard({ song, songList = [], index = 0 }) {
+export default function SongCard({ song, songList = null, index = -1 }) {
   const {
     currentSong,
     isPlaying,

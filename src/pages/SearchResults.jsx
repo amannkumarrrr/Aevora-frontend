@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { searchSongs } from '../services/musicApi';
 import SongList from '../components/SongList';
 import SearchBar from '../components/SearchBar';
@@ -12,8 +11,6 @@ export default function SearchResults() {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { registerAvailableSongs } = useMusicPlayer();
-
   const performSearch = async (searchTerm) => {
     if (!searchTerm || !searchTerm.trim()) {
       setSongs([]);
@@ -26,9 +23,6 @@ export default function SearchResults() {
     try {
       const results = await searchSongs(searchTerm.trim());
       setSongs(results);
-      if (Array.isArray(results) && results.length > 0) {
-        registerAvailableSongs(results);
-      }
     } catch (err) {
       console.error('Search failed:', err);
       setError('Music service is currently unavailable. Please try again later.');
@@ -65,6 +59,7 @@ export default function SearchResults() {
         error={error}
         onRetry={() => performSearch(query)}
         emptyMessage={`No songs found matching "${query}".`}
+        isSearchResult={true}
       />
     </div>
   );

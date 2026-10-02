@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
-import { getLyrics, getTrendingSongs } from '../services/musicApi';
+import { getLyrics, getTrendingSongs, searchSongs } from '../services/musicApi';
+import { getSongKey } from '../utils/songUtils';
+import { getRecommendedNextSong } from '../utils/recommendationEngine';
 
 const MusicPlayerContext = createContext(null);
 
-export const STORAGE_KEY_LIKED_SONGS = 'echoMusicLikedSongs';
-export const STORAGE_KEY_RECENTLY_PLAYED = 'echoMusicRecentlyPlayed';
+const STORAGE_KEY_LIKED_SONGS = 'echoMusicLikedSongs';
+const STORAGE_KEY_RECENTLY_PLAYED = 'echoMusicRecentlyPlayed';
 const STORAGE_KEY_VOLUME = 'aurabeat_volume';
 
 /**
@@ -44,18 +46,9 @@ function persistRecentlyPlayed(songs) {
 }
 
 /**
- * Returns a robust unique key for a song.
- * Uses songid or id or perma_url or url. Never identifies only by title.
- */
-export function getSongKey(song) {
-  if (!song) return '';
-  return String(song.songid || song.id || song.perma_url || song.url || '').trim();
-}
-
-/**
  * Normalizes a song object to minimal required fields for persistence & playback
  */
-export function normalizeLikedSong(song) {
+function normalizeLikedSong(song) {
   if (!song) return null;
   const key = getSongKey(song);
   if (!key) return null;
@@ -258,15 +251,18 @@ export function MusicPlayerProvider({ children }) {
 
     setPlayerError(null);
 
-    // Update queue if provided
+    // Update queue if provided (e.g. Play All from Playlist / Album / Liked Songs)
     if (newQueue && Array.isArray(newQueue) && newQueue.length > 0) {
       setQueue(newQueue);
       const targetKey = getSongKey(song);
       const idx = index !== -1 ? index : newQueue.findIndex((s) => getSongKey(s) === targetKey);
       setCurrentIndex(idx !== -1 ? idx : 0);
       registerAvailableSongs(newQueue);
-    } else if (index !== -1) {
-      setCurrentIndex(index);
+    } else {
+      // Standalone playback (e.g. clicked from Search Results or smart recommendation)
+      // Clear explicit queue so search results NEVER act as a queue
+      setQueue([]);
+      setCurrentIndex(-1);
     }
 
     setCurrentSong(song);
@@ -289,6 +285,21 @@ export function MusicPlayerProvider({ children }) {
     }
   }, [addToRecentlyPlayed, registerAvailableSongs]);
 
+  // Explicit queue manipulation helpers
+  const addToQueue = useCallback((song) => {
+    if (!song) return;
+    setQueue((prev) => [...prev, song]);
+  }, []);
+
+  const removeFromQueue = useCallback((index) => {
+    setQueue((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    setQueue([]);
+    setCurrentIndex(-1);
+  }, []);
+
   // Toggle Play / Pause
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
@@ -310,12 +321,12 @@ export function MusicPlayerProvider({ children }) {
     }
   }, [currentSong, isPlaying, queue, playSong]);
 
-  // Next song handler with full AUTOPLAY requirements
+  // Next song handler with full AUTOPLAY and SMART CONTEXTUAL RECOMMENDATION
   const handleNextSong = useCallback(async () => {
     const currentKey = getSongKey(currentSong);
 
-    // 1. If an existing queue exists, find next playable track
-    if (queue.length > 0) {
+    // 1. If an explicit queue exists and has more songs:
+    if (queue && queue.length > 0) {
       if (isShuffled) {
         const validOptions = queue
           .map((s, idx) => ({ s, idx }))
@@ -328,7 +339,7 @@ export function MusicPlayerProvider({ children }) {
         }
       }
 
-      // Sequential scan forward in queue for a valid song
+      // Sequential scan forward in explicit queue for a valid song
       let nextIdx = currentIndex + 1;
       while (nextIdx < queue.length) {
         const candidate = queue[nextIdx];
@@ -339,7 +350,7 @@ export function MusicPlayerProvider({ children }) {
         nextIdx++;
       }
 
-      // If at end of queue and repeatMode is 'all', wrap around
+      // If at end of explicit queue and repeatMode is 'all', wrap around
       if (repeatMode === 'all') {
         for (let i = 0; i < queue.length; i++) {
           if (queue[i] && queue[i].url && queue[i].url.trim()) {
@@ -350,35 +361,27 @@ export function MusicPlayerProvider({ children }) {
       }
     }
 
-    // 2. Queue ended or no queue: pick next song automatically from candidates
-    const candidateList = [
-      ...availableSongsPoolRef.current,
-      ...likedSongs,
-      ...recentlyPlayed,
-    ].filter((s) => {
-      if (!s || !s.url || !s.url.trim() || !s.title) return false;
-      return getSongKey(s) !== currentKey;
-    });
+    // 2. Queue ended or no queue: pick next song using SMART RECOMMENDATION ENGINE
+    try {
+      const nextSong = await getRecommendedNextSong(currentSong, {
+        recentlyPlayed,
+        likedSongs,
+        localPool: availableSongsPoolRef.current,
+        searchApi: searchSongs,
+        trendingApi: getTrendingSongs,
+      });
 
-    // Deduplicate candidates
-    const seen = new Set();
-    const uniqueCandidates = [];
-    for (const c of candidateList) {
-      const key = getSongKey(c);
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        uniqueCandidates.push(c);
+      if (nextSong && nextSong.url && nextSong.url.trim()) {
+        console.log(`[Autoplay] Contextual recommendation: "${nextSong.title}" by "${nextSong.singers}"`);
+        // Play recommended song standalone (without creating a queue)
+        playSong(nextSong, null, -1);
+        return;
       }
+    } catch (recErr) {
+      console.warn('[Autoplay] Recommendation engine failed:', recErr.message);
     }
 
-    if (uniqueCandidates.length > 0) {
-      // Pick next valid song from candidates
-      const nextSong = uniqueCandidates[Math.floor(Math.random() * uniqueCandidates.length)];
-      playSong(nextSong, uniqueCandidates, 0);
-      return;
-    }
-
-    // 3. If local pool exhausted, fetch trending songs dynamically
+    // 3. Fallback: Broader trending songs
     try {
       const trending = await getTrendingSongs();
       const validTrending = (trending || []).filter((s) => {
@@ -387,18 +390,17 @@ export function MusicPlayerProvider({ children }) {
       });
 
       if (validTrending.length > 0) {
-        registerAvailableSongs(validTrending);
-        const nextSong = validTrending[0];
-        playSong(nextSong, validTrending, 0);
+        const nextSong = validTrending[Math.floor(Math.random() * validTrending.length)];
+        playSong(nextSong, null, -1);
         return;
       }
     } catch (err) {
-      console.warn('Autoplay fetch fallback failed:', err.message);
+      console.warn('[Autoplay] Fallback trending fetch failed:', err.message);
     }
 
-    // 4. If only 1 song exists or none available, gracefully stop to avoid infinite loop
+    // 4. Graceful stop if nothing available
     setIsPlaying(false);
-  }, [queue, currentIndex, isShuffled, repeatMode, currentSong, likedSongs, recentlyPlayed, playSong, registerAvailableSongs]);
+  }, [queue, currentIndex, isShuffled, repeatMode, currentSong, likedSongs, recentlyPlayed, playSong]);
 
   // Previous song handler
   const handlePrevSong = useCallback(() => {
@@ -534,8 +536,9 @@ export function MusicPlayerProvider({ children }) {
       return;
     }
 
-    if (targetSong.has_lyrics === false && !targetSong.lyrics) {
-      setLyricsText(null);
+    // If song already has non-empty cached lyrics attached, display immediately
+    if (targetSong.lyrics && typeof targetSong.lyrics === 'string' && targetSong.lyrics.trim() && targetSong.lyrics.trim() !== 'null') {
+      setLyricsText(targetSong.lyrics.trim());
       setLyricsLoading(false);
       setLyricsFetchedId(targetId);
       return;
@@ -545,7 +548,7 @@ export function MusicPlayerProvider({ children }) {
     setLyricsText(null);
 
     try {
-      const lyrics = await getLyrics(targetId);
+      const lyrics = await getLyrics(targetId, targetSong.singers, targetSong.title);
       if (lyrics && typeof lyrics === 'string' && lyrics.trim() && lyrics.trim() !== 'null') {
         setLyricsText(lyrics.trim());
       } else {
@@ -614,6 +617,9 @@ export function MusicPlayerProvider({ children }) {
     openLyrics,
     closeLyrics,
     clearRecentlyPlayed,
+    addToQueue,
+    removeFromQueue,
+    clearQueue,
   };
 
   return (

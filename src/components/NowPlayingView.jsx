@@ -15,7 +15,7 @@ import {
   Mic2,
   Loader2,
 } from 'lucide-react';
-import { formatTime } from './SongCard';
+import { formatTime } from '../utils/formatTime';
 import QueueModal from './QueueModal';
 import { extractDominantColors } from '../utils/colorExtractor';
 

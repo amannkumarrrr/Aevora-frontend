@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatTime } from './SongCard';
+import { formatTime } from '../utils/formatTime';
 
 export default function ProgressBar({ currentTime = 0, duration = 0, onSeek }) {
   const percent = duration > 0 ? (currentTime / duration) * 100 : 0;
