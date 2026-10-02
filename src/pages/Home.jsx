@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { ChevronLeft, ChevronRight, Play, Pause, Trash2, Clock, Sparkles, Flame, Heart } from 'lucide-react';
+import SongCard, { QueueButton } from '../components/SongCard';
 import {
   getCuratedQuickPicks,
   getHindiHits,
@@ -118,7 +119,7 @@ export default function Home() {
     </div>
   );
 
-  // Reusable 4-row song column renderer
+  // Reusable 4-row song column renderer using unified SongCard
   const renderSongColumns = (songList, scrollRef) => {
     const chunked = chunkSongs(songList);
     return (
@@ -127,79 +128,14 @@ export default function Home() {
           <div key={colIdx} className="echo-picks-col">
             {column.map((song, rowIdx) => {
               const globalIdx = colIdx * 4 + rowIdx;
-              const isCurrent = currentSong && (currentSong.id === song.id || currentSong.songid === song.songid);
-              const isThisPlaying = isCurrent && isPlaying;
-
               return (
-                <div
+                <SongCard
                   key={song.id || song.songid || globalIdx}
-                  className={`echo-pick-item ${isCurrent ? 'active' : ''}`}
-                  onClick={() => {
-                    if (isCurrent) {
-                      togglePlay();
-                    } else {
-                      playSong(song, songList, globalIdx);
-                    }
-                  }}
-                  title={`Play ${song.title} by ${song.singers}`}
-                >
-                  <div className="echo-pick-thumb-wrap">
-                    <img
-                      src={song.image_url}
-                      alt={song.title}
-                      className="echo-pick-thumb"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop';
-                      }}
-                    />
-                    <div className="echo-pick-overlay">
-                      {isThisPlaying ? (
-                        <Pause size={18} fill="#fff" />
-                      ) : (
-                        <Play size={18} fill="#fff" style={{ marginLeft: 2 }} />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="echo-pick-info">
-                    <h4 className="echo-pick-title">{song.title}</h4>
-                    <div className="echo-pick-sub">
-                      <span className="echo-explicit-badge">E</span>
-                      <span className="echo-pick-artist">{song.singers}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleLike(song);
-                    }}
-                    title={isSongLiked(song) ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 6,
-                      color: isSongLiked(song) ? '#f43f5e' : 'var(--text-dim)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginLeft: 'auto',
-                      flexShrink: 0,
-                      transition: 'transform 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.2)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                  >
-                    <Heart
-                      size={16}
-                      fill={isSongLiked(song) ? '#f43f5e' : 'none'}
-                      color={isSongLiked(song) ? '#f43f5e' : 'currentColor'}
-                    />
-                  </button>
-                </div>
+                  song={song}
+                  songList={songList}
+                  index={globalIdx}
+                  variant="pick"
+                />
               );
             })}
           </div>
@@ -280,26 +216,29 @@ export default function Home() {
                   <h3 className="echo-quick-title">{song.title}</h3>
                   <p className="echo-quick-artist">{song.singers}</p>
                 </div>
-                <button
-                  type="button"
-                  className="echo-quick-play-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isCurrent) {
-                      togglePlay();
-                    } else {
-                      playSong(song, recentlyPlayed, idx);
-                    }
-                  }}
-                  title={isThisPlaying ? 'Pause' : 'Play'}
-                  aria-label={isThisPlaying ? 'Pause' : 'Play'}
-                >
-                  {isThisPlaying ? (
-                    <Pause size={16} fill="#000" color="#000" />
-                  ) : (
-                    <Play size={16} fill="#000" color="#000" style={{ marginLeft: 2 }} />
-                  )}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 10 }}>
+                  <QueueButton song={song} size={15} style={{ marginRight: 2 }} />
+                  <button
+                    type="button"
+                    className="echo-quick-play-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isCurrent) {
+                        togglePlay();
+                      } else {
+                        playSong(song, recentlyPlayed, idx);
+                      }
+                    }}
+                    title={isThisPlaying ? 'Pause' : 'Play'}
+                    aria-label={isThisPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isThisPlaying ? (
+                      <Pause size={16} fill="#000" color="#000" />
+                    ) : (
+                      <Play size={16} fill="#000" color="#000" style={{ marginLeft: 2 }} />
+                    )}
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -501,40 +440,16 @@ export default function Home() {
           </div>
 
           <div className="echo-quick-picks-columns">
-            {recentlyPlayed.slice(0, 8).map((song, idx) => {
-              const isCurrent = currentSong && (currentSong.id === song.id || currentSong.songid === song.songid);
-              const isThisPlaying = isCurrent && isPlaying;
-
-              return (
-                <div
-                  key={song.id || song.songid || idx}
-                  className={`echo-pick-item ${isCurrent ? 'active' : ''}`}
-                  onClick={() => {
-                    if (isCurrent) {
-                      togglePlay();
-                    } else {
-                      playSong(song, recentlyPlayed, idx);
-                    }
-                  }}
-                  style={{ minWidth: 260 }}
-                >
-                  <div className="echo-pick-thumb-wrap">
-                    <img
-                      src={song.image_url}
-                      alt={song.title}
-                      className="echo-pick-thumb"
-                    />
-                    <div className="echo-pick-overlay">
-                      {isThisPlaying ? <Pause size={16} fill="#fff" /> : <Play size={16} fill="#fff" />}
-                    </div>
-                  </div>
-                  <div className="echo-pick-info">
-                    <h4 className="echo-pick-title">{song.title}</h4>
-                    <span className="echo-pick-artist">{song.singers}</span>
-                  </div>
-                </div>
-              );
-            })}
+            {recentlyPlayed.slice(0, 8).map((song, idx) => (
+              <SongCard
+                key={song.id || song.songid || idx}
+                song={song}
+                songList={recentlyPlayed}
+                index={idx}
+                variant="pick"
+                style={{ minWidth: 260 }}
+              />
+            ))}
           </div>
         </section>
       )}

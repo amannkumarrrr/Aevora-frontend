@@ -197,26 +197,72 @@ export function extractSongProfile(song) {
  * - Similar / same artist: medium priority (+15 pts)
  * - Album / era context: (+5 pts)
  * - Controlled randomness: (+0-15 pts)
+/**
+ * Calculates a comprehensive recommendation score for a candidate song
+ * against the current song profile, playback history, queue, and sequence diversity.
+ *
+ * Requirements:
+ * - Same language: +30
+ * - Hindi <-> Punjabi crossover synergy: +12
+ * - Same genre: +25
+ * - Similar genre: +15
+ * - Same mood: +20
+ * - Similar mood: +10
+ * - Similar artist: +10
+ * - Similar style / album: +10
+ * - Previously liked: +10
+ * - Recently played (in last 15-20 tracks): -25
+ * - Already in explicit queue: -40
+ * - Same exact song: -1000
+ *
+ * Sequence diversity penalties:
+ * - Same artist as immediately preceding song in sequence: -25
+ * - Same artist as 2nd preceding song in sequence: -15
+ * - Same album as immediately preceding song: -20
+ * - Same exact genre as last 2 songs: -10
  */
-export function calculateSimilarityScore(currentProfile, candidateProfile) {
-  if (!currentProfile || !candidateProfile) return 0;
+export function scoreCandidate(currentProfile, candidateSong, context = {}) {
+  if (!currentProfile || !candidateSong) return -1000;
+
+  const currentKey = currentProfile.id || getSongKey(currentProfile.raw);
+  const candKey = getSongKey(candidateSong);
+  if (!candKey) return -1000;
+
+  // Exact same song as currently playing
+  if (currentKey && candKey === currentKey) return -1000;
+
+  const candidateProfile = extractSongProfile(candidateSong);
+  if (!candidateProfile) return -1000;
+
+  const recentlyPlayedSet = context.recentlyPlayedKeys || context.recentlyPlayedIds || new Set();
+  const explicitSet = context.explicitKeys || context.explicitIds || new Set();
+  const likedSet = context.likedKeys || context.likedIds || new Set();
+  const generatedSequence = context.generatedSequence || [];
+
+  // Same song already selected in current generated smart sequence
+  if (generatedSequence.some((s) => getSongKey(s) === candKey)) {
+    return -1000;
+  }
 
   let score = 0;
 
-  // 1. Language matching (Very High Priority: +40 points)
+  // 1. Language matching (+30 points) - Strongest signal
   if (currentProfile.language && candidateProfile.language) {
     if (currentProfile.language === candidateProfile.language) {
-      score += 40;
+      score += 30;
     } else if (
       (currentProfile.language === 'punjabi' && candidateProfile.language === 'hindi') ||
       (currentProfile.language === 'hindi' && candidateProfile.language === 'punjabi')
     ) {
-      // Partial compatibility between Indian regional music (especially in Desi Hip-Hop/Pop)
-      score += 15;
+      // High synergy between Hindi & Punjabi popular / hip-hop music
+      score += 12;
+    } else {
+      // Divergent language (e.g. English vs regional)
+      score -= 5;
     }
   }
 
-  // 2. Genre matching (High Priority: +25 points)
+  // 2. Genre matching (+25 points)
   if (currentProfile.genre && candidateProfile.genre) {
     if (currentProfile.genre === candidateProfile.genre) {
       score += 25;
@@ -225,11 +271,11 @@ export function calculateSimilarityScore(currentProfile, candidateProfile) {
       (currentProfile.genre.includes('romantic') && candidateProfile.genre.includes('romantic')) ||
       (currentProfile.genre.includes('pop') && candidateProfile.genre.includes('pop'))
     ) {
-      score += 18;
+      score += 15;
     }
   }
 
-  // 3. Mood matching (High Priority: +20 points)
+  // 3. Mood matching (+20 points)
   if (currentProfile.mood && candidateProfile.mood) {
     if (currentProfile.mood === candidateProfile.mood) {
       score += 20;
@@ -241,26 +287,94 @@ export function calculateSimilarityScore(currentProfile, candidateProfile) {
     }
   }
 
-  // 4. Artist / Style similarity (Medium Priority: +15 points)
+  // 4. Similar artist (+10 points)
   if (currentProfile.artist && candidateProfile.artist) {
     const curArtists = currentProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
     const candArtists = candidateProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
-
     const hasCommonArtist = curArtists.some((ca) => candArtists.some((canda) => ca.includes(canda) || canda.includes(ca)));
     if (hasCommonArtist) {
-      score += 15;
+      score += 10;
     }
   }
 
-  // 5. Album / Era similarity (+5 points)
+  // 5. Similar style / Album (+10 points)
   if (currentProfile.album && candidateProfile.album && currentProfile.album.toLowerCase() === candidateProfile.album.toLowerCase()) {
-    score += 5;
+    score += 10;
   }
 
-  // 6. Randomness factor (Medium Priority: +0-15 points to ensure diverse candidate selection)
-  score += Math.random() * 15;
+  // 6. Previously liked (+10 points)
+  if (likedSet.has(candKey) || (candidateSong.id && likedSet.has(candidateSong.id))) {
+    score += 10;
+  }
+
+  // 7. Recently played (-25 penalty for last 15-20 tracks)
+  if (recentlyPlayedSet.has(candKey) || (candidateSong.id && recentlyPlayedSet.has(candidateSong.id))) {
+    score -= 25;
+  }
+
+  // 8. Already in explicit queue (-40 penalty)
+  if (explicitSet.has(candKey) || (candidateSong.id && explicitSet.has(candidateSong.id))) {
+    score -= 40;
+  }
+
+  // 9. DIVERSITY RULES (Prevent sequence repetition: Artist A -> Artist A -> Artist A)
+  if (generatedSequence.length > 0) {
+    const immediatePrev = generatedSequence[generatedSequence.length - 1];
+    const prevProfile = extractSongProfile(immediatePrev);
+
+    if (prevProfile) {
+      // Avoid immediate repeat artist
+      if (candidateProfile.artist && prevProfile.artist) {
+        const prevArtists = prevProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
+        const candArtists = candidateProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
+        const sharesPrevArtist = prevArtists.some((pa) => candArtists.some((ca) => pa.includes(ca) || ca.includes(pa)));
+        if (sharesPrevArtist) {
+          score -= 25;
+        }
+      }
+
+      // Avoid immediate repeat album
+      if (candidateProfile.album && prevProfile.album && candidateProfile.album.toLowerCase() === prevProfile.album.toLowerCase()) {
+        score -= 20;
+      }
+
+      // Avoid 2-back repeat artist (Artist A -> Artist B -> Artist A penalty is lower, but still discouraged)
+      if (generatedSequence.length >= 2) {
+        const secondPrev = generatedSequence[generatedSequence.length - 2];
+        const secondPrevProfile = extractSongProfile(secondPrev);
+        if (secondPrevProfile && secondPrevProfile.artist && candidateProfile.artist) {
+          const secondArtists = secondPrevProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
+          const candArtists = candidateProfile.artist.toLowerCase().split(/[,/&]+/).map((a) => a.trim()).filter(Boolean);
+          if (secondArtists.some((sa) => candArtists.some((ca) => sa.includes(ca) || ca.includes(sa)))) {
+            score -= 15;
+          }
+        }
+      }
+
+      // Avoid 3 consecutive same exact genre
+      if (generatedSequence.length >= 2) {
+        const secondPrev = generatedSequence[generatedSequence.length - 2];
+        const secondPrevProfile = extractSongProfile(secondPrev);
+        if (
+          prevProfile.genre === candidateProfile.genre &&
+          secondPrevProfile &&
+          secondPrevProfile.genre === candidateProfile.genre
+        ) {
+          score -= 10;
+        }
+      }
+    }
+  }
 
   return score;
+}
+
+/**
+ * Legacy compatibility similarity scoring function
+ */
+export function calculateSimilarityScore(currentProfile, candidateProfile) {
+  if (!currentProfile || !candidateProfile) return 0;
+  return scoreCandidate(currentProfile, candidateProfile.raw || candidateProfile);
 }
 
 /**
@@ -292,89 +406,130 @@ export function buildRecommendationQueries(profile) {
 }
 
 /**
- * Selects the optimal next recommended song based on currentSong context
- *
- * Flow:
- * currentSong
- *    ↓
- * extract metadata profile
- *    ↓
- * find/generate candidate songs
- *    ↓
- * calculate similarity score
- *    ↓
- * filter already played / current song
- *    ↓
- * randomly select from high-scoring candidates
- *    ↓
- * play recommended song
+ * Performs controlled weighted random selection among scored candidates
+ * Ensures higher scores have higher probability, but lower scoring candidates
+ * still have a non-zero chance of being selected (avoiding purely deterministic queues).
  */
-export async function getRecommendedNextSong(currentSong, options = {}) {
+export function weightedRandomSelect(scoredCandidates) {
+  if (!Array.isArray(scoredCandidates) || scoredCandidates.length === 0) return null;
+  if (scoredCandidates.length === 1) return scoredCandidates[0].song;
+
+  // Filter out invalid or blacklisted candidates (score <= -100)
+  const eligible = scoredCandidates.filter((item) => item.score > -100);
+  if (eligible.length === 0) {
+    return scoredCandidates[Math.floor(Math.random() * scoredCandidates.length)].song;
+  }
+
+  // Calculate weights using power curve max(1, score)^1.5 to accentuate high quality
+  // while retaining non-zero odds for all eligible items
+  const weights = eligible.map((item) => {
+    const effectiveScore = Math.max(1, item.score);
+    return Math.pow(effectiveScore, 1.5);
+  });
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  if (totalWeight <= 0) {
+    return eligible[Math.floor(Math.random() * eligible.length)].song;
+  }
+
+  let randomVal = Math.random() * totalWeight;
+  for (let i = 0; i < eligible.length; i++) {
+    randomVal -= weights[i];
+    if (randomVal <= 0) {
+      return eligible[i].song;
+    }
+  }
+
+  return eligible[eligible.length - 1].song;
+}
+
+/**
+ * Generates an intelligent batch of upcoming Smart Shuffle songs (e.g. 5-8 songs)
+ * based on current song context, diversity rules, and weighted randomness.
+ */
+export async function generateSmartShuffleQueue(currentSong, options = {}) {
   const {
     recentlyPlayed = [],
     likedSongs = [],
     localPool = [],
+    explicitQueue = [],
+    existingSmartQueue = [],
     searchApi = null,
     trendingApi = null,
+    batchSize = 6,
   } = options;
 
-  if (!currentSong) return null;
+  if (!currentSong) return [];
 
   const currentProfile = extractSongProfile(currentSong);
   const currentKey = getSongKey(currentSong);
 
-  // Set of recently played song keys to prevent repetition (last 15 songs)
-  const recentKeys = new Set(
-    recentlyPlayed
-      .slice(0, 15)
-      .map(getSongKey)
-      .filter(Boolean)
+  const recentlyPlayedKeys = new Set(
+    recentlyPlayed.slice(0, 20).map(getSongKey).filter(Boolean)
   );
-  recentKeys.add(currentKey);
+  if (currentKey) recentlyPlayedKeys.add(currentKey);
+
+  const explicitKeys = new Set(
+    explicitQueue.map(getSongKey).filter(Boolean)
+  );
+
+  const likedKeys = new Set(
+    likedSongs.map(getSongKey).filter(Boolean)
+  );
+
+  const existingSmartKeys = new Set(
+    existingSmartQueue.map(getSongKey).filter(Boolean)
+  );
 
   const candidatePool = [];
 
-  // Helper to validate and add songs to candidatePool
   const addCandidates = (songs) => {
     if (!Array.isArray(songs)) return;
     for (const s of songs) {
       if (!s || !s.url || !s.url.trim() || !s.title) continue;
       const key = getSongKey(s);
       if (!key) continue;
-      // Filter out current song and recently played
-      if (recentKeys.has(key)) continue;
+      if (key === currentKey || existingSmartKeys.has(key)) continue;
       candidatePool.push(s);
     }
   };
 
-  // 1. Add candidates from local memory pools
+  // 1. In-memory local pools and liked songs
   addCandidates(localPool);
   addCandidates(likedSongs);
 
-  // 2. Dynamically fetch fresh candidates matching current song context via Search API
+  // 2. Fetch fresh candidates via Search API using top 2 recommendation queries
   if (typeof searchApi === 'function') {
     const queries = buildRecommendationQueries(currentProfile);
-    // Pick the top 2 queries to query concurrently with minimal latency
     const targetQueries = queries.slice(0, 2);
 
     try {
       const searchPromises = targetQueries.map((q) =>
         searchApi(q).catch((err) => {
-          console.warn(`[Recommendation] Search query "${q}" failed:`, err.message);
+          console.warn(`[SmartShuffle] Search query "${q}" failed:`, err.message);
           return [];
         })
       );
-
-      const resultsList = await Promise.all(searchPromises);
-      for (const res of resultsList) {
+      const results = await Promise.all(searchPromises);
+      for (const res of results) {
         addCandidates(res);
       }
-    } catch (apiErr) {
-      console.warn('[Recommendation] Dynamic candidate fetch failed:', apiErr.message);
+    } catch (err) {
+      console.warn('[SmartShuffle] Dynamic search candidate fetch failed:', err.message);
     }
   }
 
-  // 3. Deduplicate candidate pool
+  // 3. Fallback: If candidate pool is small, fetch trending songs
+  if (candidatePool.length < 15 && typeof trendingApi === 'function') {
+    try {
+      const trending = await trendingApi();
+      addCandidates(trending);
+    } catch (err) {
+      console.warn('[SmartShuffle] Trending candidate fallback failed:', err.message);
+    }
+  }
+
+  // 4. Deduplicate candidate pool
   const seenKeys = new Set();
   const uniqueCandidates = [];
   for (const song of candidatePool) {
@@ -385,52 +540,51 @@ export async function getRecommendedNextSong(currentSong, options = {}) {
     }
   }
 
-  // 4. Score all candidates using weighted similarity algorithm
-  if (uniqueCandidates.length > 0) {
-    const scoredList = uniqueCandidates.map((song) => {
-      const candidateProfile = extractSongProfile(song);
-      const score = calculateSimilarityScore(currentProfile, candidateProfile);
+  if (uniqueCandidates.length === 0) {
+    return [];
+  }
+
+  // 5. Iteratively select songs applying diversity rules and weighted randomness
+  const generatedSequence = [];
+  let remainingCandidates = [...uniqueCandidates];
+
+  const targetCount = Math.min(batchSize, remainingCandidates.length);
+
+  for (let step = 0; step < targetCount; step++) {
+    // Score all remaining candidates in the context of the current song and what has been generated so far
+    const scored = remainingCandidates.map((song) => {
+      const score = scoreCandidate(currentProfile, song, {
+        recentlyPlayedKeys,
+        explicitKeys,
+        generatedSequence,
+        likedKeys,
+      });
       return { song, score };
     });
 
-    // Sort candidates descending by score
-    scoredList.sort((a, b) => b.score - a.score);
+    // Select winner using weighted random selection
+    const chosenSong = weightedRandomSelect(scored);
+    if (!chosenSong) break;
 
-    const highestScore = scoredList[0].score;
-    // Top tier: candidates within 18 points of the highest score
-    const topTier = scoredList.filter((item) => item.score >= highestScore - 18);
-
-    // Random selection from the high-scoring tier to prevent repetitive autoplay
-    const chosen = topTier[Math.floor(Math.random() * topTier.length)];
-    return chosen.song;
+    generatedSequence.push(chosenSong);
+    const chosenKey = getSongKey(chosenSong);
+    remainingCandidates = remainingCandidates.filter((s) => getSongKey(s) !== chosenKey);
   }
 
-  // 5. Fallback 1: Relax recently played filter if candidate pool was too restrictive
-  const relaxedPool = [...localPool, ...likedSongs].filter((s) => {
-    if (!s || !s.url || !s.url.trim() || !s.title) return false;
-    return getSongKey(s) !== currentKey;
+  return generatedSequence;
+}
+
+/**
+ * Selects the optimal next recommended song based on currentSong context
+ */
+export async function getRecommendedNextSong(currentSong, options = {}) {
+  const batch = await generateSmartShuffleQueue(currentSong, {
+    ...options,
+    batchSize: 1,
   });
-
-  if (relaxedPool.length > 0) {
-    return relaxedPool[Math.floor(Math.random() * relaxedPool.length)];
+  if (batch && batch.length > 0) {
+    return batch[0];
   }
-
-  // 6. Fallback 2: Broader trending recommendation
-  if (typeof trendingApi === 'function') {
-    try {
-      const trending = await trendingApi();
-      const valid = (trending || []).filter((s) => {
-        if (!s || !s.url || !s.url.trim() || !s.title) return false;
-        return getSongKey(s) !== currentKey;
-      });
-      if (valid.length > 0) {
-        return valid[Math.floor(Math.random() * valid.length)];
-      }
-    } catch (e) {
-      console.warn('[Recommendation] Broader fallback failed:', e.message);
-    }
-  }
-
   return null;
 }
 
@@ -440,5 +594,8 @@ export default {
   inferGenreAndMood,
   calculateSimilarityScore,
   buildRecommendationQueries,
+  scoreCandidate,
+  weightedRandomSelect,
+  generateSmartShuffleQueue,
   getRecommendedNextSong,
 };

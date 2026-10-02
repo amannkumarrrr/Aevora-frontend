@@ -235,10 +235,24 @@ export default function NowPlayingView({ isOpen, onClose }) {
                 type="button"
                 className={`echo-np-ctrl-btn ${isShuffled ? 'active' : ''}`}
                 onClick={toggleShuffle}
-                title={isShuffled ? 'Shuffle: On' : 'Shuffle: Off'}
-                aria-label="Toggle shuffle"
+                title={isShuffled ? 'Smart Shuffle: On (Intelligent Queue Active)' : 'Smart Shuffle: Off'}
+                aria-label="Toggle smart shuffle"
+                style={isShuffled ? { color: '#a855f7', position: 'relative' } : { position: 'relative' }}
               >
                 <Shuffle size={20} />
+                {isShuffled && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: 2,
+                      width: 4,
+                      height: 4,
+                      borderRadius: '50%',
+                      backgroundColor: '#a855f7',
+                      boxShadow: '0 0 8px rgba(168,85,247,0.9)',
+                    }}
+                  />
+                )}
               </button>
 
               <button

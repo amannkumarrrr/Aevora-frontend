@@ -2428,3 +2428,76 @@ img, svg {
   max-width: 100%;
 }
 
+/* ========================================================
+   FLOATING TOAST & QUEUE DRAG-AND-DROP
+   ======================================================== */
+@keyframes toastFadeSlide {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.queue-drag-item {
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.queue-drag-item.is-dragging {
+  opacity: 0.35;
+  border: 1px dashed #a855f7 !important;
+}
+
+.queue-drag-item.drag-over {
+  border-top: 2px solid #a855f7 !important;
+  background: rgba(168, 85, 247, 0.15) !important;
+}
+
+/* ========================================================
+   SONG CARD QUEUE & PLAY NEXT HOVER BUTTONS
+   ======================================================== */
+.song-card-queue-btn,
+.song-card-playnext-btn {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  pointer-events: none;
+}
+
+.song-card:hover .song-card-queue-btn,
+.song-card:hover .song-card-playnext-btn,
+.song-card-queue-btn.is-active-added,
+.song-card.is-active .song-card-queue-btn,
+.song-card.is-active .song-card-playnext-btn {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.song-card-queue-btn:hover {
+  color: #a855f7 !important;
+  transform: scale(1.18) !important;
+}
+
+.song-card-playnext-btn:hover {
+  color: #a855f7 !important;
+  transform: scale(1.18) !important;
+}
+
+.song-card-queue-btn.is-active-added {
+  color: #10b981 !important;
+}
+
+/* Mobile: No hover capability -> Always visible & touch-friendly */
+@media (hover: none), (max-width: 640px) {
+  .song-card-queue-btn,
+  .song-card-playnext-btn {
+    opacity: 0.9 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+}
+

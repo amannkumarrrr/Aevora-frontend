@@ -18,9 +18,23 @@ export default function PlayerControls({
         type="button"
         onClick={onToggleShuffle}
         className={`control-btn ${isShuffled ? 'active' : ''}`}
-        title={isShuffled ? 'Shuffle: On' : 'Shuffle: Off'}
+        title={isShuffled ? 'Smart Shuffle: On (Intelligent recommendations active)' : 'Smart Shuffle: Off'}
+        style={isShuffled ? { color: '#a855f7', position: 'relative' } : { position: 'relative' }}
       >
         <Shuffle size={18} />
+        {isShuffled && (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              width: 3,
+              height: 3,
+              borderRadius: '50%',
+              backgroundColor: '#a855f7',
+              boxShadow: '0 0 6px rgba(168,85,247,0.9)',
+            }}
+          />
+        )}
       </button>
 
       {/* Previous button */}

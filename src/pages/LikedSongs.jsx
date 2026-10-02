@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
-import { Heart, Play, Pause, Clock, Music } from 'lucide-react';
+import { Heart, Play, Pause, Clock, Music, ListStart, ListPlus } from 'lucide-react';
 import { formatTime } from '../utils/formatTime';
 
 export default function LikedSongs() {
@@ -13,6 +13,8 @@ export default function LikedSongs() {
     togglePlay,
     toggleLike,
     isSongLiked,
+    addToQueue,
+    playNextSong,
   } = useMusicPlayer();
 
   const handlePlayAll = () => {
@@ -205,8 +207,36 @@ export default function LikedSongs() {
                   {formatTime(song.duration)}
                 </div>
 
-                {/* Like / Unlike Button */}
-                <div className="col-like echo-liked-action">
+                {/* Actions: Play Next, Add to Queue, Like/Unlike */}
+                <div className="col-like echo-liked-action" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playNextSong(song);
+                    }}
+                    title="Play next"
+                    className="echo-liked-heart-btn"
+                    style={{ color: 'var(--text-dim)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#a855f7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+                  >
+                    <ListStart size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addToQueue(song);
+                    }}
+                    title="Add to queue"
+                    className="echo-liked-heart-btn"
+                    style={{ color: 'var(--text-dim)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#a855f7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+                  >
+                    <ListPlus size={16} />
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
