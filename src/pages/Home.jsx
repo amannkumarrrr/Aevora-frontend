@@ -36,6 +36,7 @@ export default function Home() {
   const hindiScrollRef = useRef(null);
   const punjabiScrollRef = useRef(null);
   const madeForYouScrollRef = useRef(null);
+  const recentlyPlayedScrollRef = useRef(null);
 
   // Up to 7 recently played songs (making up to 8 cards total with Liked Songs)
   const recentSlice = (recentlyPlayed || []).slice(0, 7);
@@ -86,7 +87,12 @@ export default function Home() {
 
   const scrollContainer = (ref, direction) => {
     if (ref.current) {
-      const scrollAmount = direction === 'left' ? -380 : 380;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+      // On mobile (<= 768px), each slide is 1 full viewport width (4 items vertically)
+      // On desktop, scroll standard column step
+      const scrollAmount = isMobile
+        ? (direction === 'left' ? -ref.current.clientWidth : ref.current.clientWidth)
+        : (direction === 'left' ? -380 : 380);
       ref.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
@@ -108,7 +114,7 @@ export default function Home() {
           {Array.from({ length: 4 }).map((_, rowIdx) => (
             <div key={rowIdx} className="echo-pick-item">
               <div className="skeleton" style={{ width: 48, height: 48, borderRadius: 6, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="skeleton" style={{ height: 14, width: '70%', marginBottom: 6 }} />
                 <div className="skeleton" style={{ height: 12, width: '45%' }} />
               </div>
@@ -429,28 +435,35 @@ export default function Home() {
               <Clock size={20} />
               <span>Recently Played</span>
             </h2>
-            <button
-              type="button"
-              onClick={clearRecentlyPlayed}
-              className="echo-arrow-btn"
-              title="Clear history"
-            >
-              <Trash2 size={16} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="echo-arrow-btn"
+                onClick={() => scrollContainer(recentlyPlayedScrollRef, 'left')}
+                title="Previous"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                className="echo-arrow-btn"
+                onClick={() => scrollContainer(recentlyPlayedScrollRef, 'right')}
+                title="Next"
+              >
+                <ChevronRight size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={clearRecentlyPlayed}
+                className="echo-arrow-btn"
+                title="Clear history"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
 
-          <div className="echo-quick-picks-columns">
-            {recentlyPlayed.slice(0, 8).map((song, idx) => (
-              <SongCard
-                key={song.id || song.songid || idx}
-                song={song}
-                songList={recentlyPlayed}
-                index={idx}
-                variant="pick"
-                style={{ minWidth: 260 }}
-              />
-            ))}
-          </div>
+          {renderSongColumns(recentlyPlayed, recentlyPlayedScrollRef)}
         </section>
       )}
     </div>

@@ -644,30 +644,48 @@ h1, h2, h3, h4, h5, h6 {
   gap: 6px;
   min-width: 290px;
   flex: 0 0 290px;
+  box-sizing: border-box;
 }
 
+/* Tablet: Smooth responsive intermediate */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .echo-quick-picks-columns {
+    gap: 16px;
+  }
+  .echo-picks-col {
+    min-width: 280px;
+    flex: 0 0 280px;
+    gap: 6px;
+  }
+}
+
+/* Mobile: Exactly 1 column (4 items vertically) per horizontal slide */
 @media (max-width: 768px) {
   .echo-quick-picks-columns {
-    gap: 12px;
+    gap: 16px;
     padding-bottom: 6px;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .echo-quick-picks-columns::-webkit-scrollbar {
+    display: none;
   }
 
   .echo-picks-col {
-    min-width: 0;
-    width: 82vw;
-    max-width: 310px;
-    flex: 0 0 82vw;
+    min-width: 100%;
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 100%;
     gap: 4px;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    box-sizing: border-box;
   }
 }
-
-@media (max-width: 360px) {
-  .echo-picks-col {
-    width: 86vw;
-    flex: 0 0 86vw;
-  }
-}
-
 
 .echo-pick-item {
   display: flex;
@@ -678,6 +696,8 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
   transition: background 0.15s ease;
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .echo-pick-item:hover {
@@ -725,6 +745,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
   overflow: hidden;
   flex: 1;
+  min-width: 0; /* Prevents overflow when title/artist has white-space: nowrap */
 }
 
 .echo-pick-title {
@@ -747,6 +768,8 @@ h1, h2, h3, h4, h5, h6 {
   gap: 6px;
   font-size: 0.8rem;
   color: var(--text-dim);
+  overflow: hidden;
+  min-width: 0;
 }
 
 .echo-explicit-badge {
@@ -757,12 +780,38 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0 3px;
   border-radius: 2px;
   line-height: 1.2;
+  flex-shrink: 0;
 }
 
 .echo-pick-artist {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.echo-pick-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .echo-pick-item {
+    gap: 10px;
+    padding: 6px 4px;
+  }
+  .echo-pick-title {
+    font-size: 0.88rem;
+  }
+  .echo-pick-sub {
+    font-size: 0.76rem;
+  }
+  .echo-pick-actions {
+    gap: 2px;
+  }
 }
 
 /* ========================================================
@@ -2469,9 +2518,13 @@ img, svg {
 
 .song-card:hover .song-card-queue-btn,
 .song-card:hover .song-card-playnext-btn,
+.echo-pick-item:hover .song-card-queue-btn,
+.echo-pick-item:hover .song-card-playnext-btn,
 .song-card-queue-btn.is-active-added,
 .song-card.is-active .song-card-queue-btn,
-.song-card.is-active .song-card-playnext-btn {
+.song-card.is-active .song-card-playnext-btn,
+.echo-pick-item.active .song-card-queue-btn,
+.echo-pick-item.active .song-card-playnext-btn {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
@@ -2492,7 +2545,7 @@ img, svg {
 }
 
 /* Mobile: No hover capability -> Always visible & touch-friendly */
-@media (hover: none), (max-width: 640px) {
+@media (hover: none), (max-width: 768px) {
   .song-card-queue-btn,
   .song-card-playnext-btn {
     opacity: 0.9 !important;
